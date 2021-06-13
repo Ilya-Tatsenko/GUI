@@ -1,0 +1,145 @@
+-- Создание таблиц
+CREATE PROCEDURE create_tables()
+LANGUAGE SQL
+AS $$
+create table Country (
+	id int GENERATED ALWAYS AS IDENTITY not null primary key,
+	name varchar(50) not null,
+	cities_count int not null default(0)
+);
+
+create table City (
+	id int GENERATED ALWAYS AS IDENTITY not null primary key,
+	name varchar(50) not null,
+	country int not null REFERENCES country (id) ON DELETE CASCADE,
+	isCapital boolean not null default(false)
+);
+$$;
+call create_tables();
+
+-- Создание триггеров
+CREATE OR REPLACE FUNCTION function_count_insert() RETURNS TRIGGER AS
+$BODY$
+BEGIN
+    update country set cities_count = (select count(id) from city where country = new.country) where id = new.country;
+	return new;
+END;
+$BODY$
+language plpgsql;
+
+CREATE TRIGGER trig_count_insert
+     AFTER INSERT ON city
+     FOR EACH ROW
+     EXECUTE PROCEDURE function_count_insert();
+	 
+	 
+CREATE OR REPLACE FUNCTION function_count_delete() RETURNS TRIGGER AS
+$BODY$
+BEGIN
+    update country set cities_count = (select count(id) from city where country = old.country) where id = old.country;
+	return new;
+END;
+$BODY$
+language plpgsql;
+
+CREATE TRIGGER trig_count_delete
+     AFTER delete ON city
+     FOR EACH ROW
+     EXECUTE PROCEDURE function_count_delete();
+
+-- Заполнение таблиц
+insert into country(name, cities_count) values
+('Russia', 0),
+('Spain', 0),
+('Italy', 0);
+
+insert into city(name,country,isCapital) values
+('Moscow', 1, true),
+('Kazan', 1, false),
+('Madrid', 2, true),
+('Barcelona', 2, false),
+('Rome', 3, true),
+('Milan', 3, false);
+
+-- Создание индексов
+CREATE UNIQUE INDEX idx_country ON country (name);
+CREATE UNIQUE INDEX idx_city ON city (name);
+
+-- Очистка всех таблиц
+CREATE PROCEDURE clear_tables()
+LANGUAGE SQL
+AS $$
+delete from city;
+delete from country;
+$$;
+
+-- Очитска одной таблицы
+CREATE PROCEDURE clear_table_city()
+LANGUAGE SQL
+AS $$
+delete from city;
+$$;
+
+-- Вывод содержимого таблиц
+create function get_table_country () 
+	returns table (id int,name varchar,cities_count int) 
+	language plpgsql
+as $$
+begin
+	return query 
+		select * from country;
+end;$$;
+
+create function get_table_city () 
+	returns table (name varchar,country int,isCapital boolean) 
+	language plpgsql
+as $$
+begin
+	return query 
+		select c.name,c.country,c.iscapital from city c;
+end;$$;
+
+-- Поиск по полю
+create or replace function search_table_country (n varchar) 
+	returns table (id int, name varchar,cities_count int) 
+	language plpgsql
+as $$
+begin
+	return query 
+		select * from country c where c.name = n;
+end;$$;
+
+create or replace function search_table_city (n varchar) 
+	returns table (name varchar,country int,isCapital boolean) 
+	language plpgsql
+as $$
+begin
+	return query 
+		select c.name,c.country,c.iscapital from city c where c.name = n;
+end;$$;
+
+-- Удаление по полю
+create procedure delete_from_country (n varchar) 
+LANGUAGE SQL
+AS $$
+delete from country c where c.name = n;
+$$;
+
+create procedure delete_from_city (n varchar) 
+	language sql
+as $$
+delete from city c where c.name = n;
+$$;
+
+-- Добавление
+create procedure insert_into_country (n varchar,c int) 
+	language sql
+as $$
+insert into country(name,cities_count) values(n,c);
+$$;
+
+create procedure insert_into_city (n varchar,c int, b boolean) 
+	language sql
+as $$
+insert into city(name,country,iscapital) values(n,c,b);
+$$;
